@@ -1,0 +1,23 @@
+{
+  "name": "xcvi-restapi",
+  "version": "1.0.0",
+  "description": "XCVI REST API Documentation Website",
+  "main": "index.html",
+  "scripts": {
+    "dev": "vercel dev",
+    "build": "echo 'Build completed successfully'",
+    "start": "npx serve ."
+  },
+  "dependencies": {
+    "@vercel/node": "^4.0.0"
+  },
+  "devDependencies": {
+    "vercel": "^28.16.0"
+  },
+  "engines": {
+    "node": "22.x"
+  },
+  "keywords": ["rest-api", "api", "documentation", "xcvi"],
+  "author": "Wanz Official",
+  "license": "MIT"
+}
