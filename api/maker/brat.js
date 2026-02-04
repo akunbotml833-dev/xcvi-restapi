@@ -75,71 +75,66 @@ module.exports = async (req, res) => {
       });
     }
     
-    // FIXED: 800x800 PIXELS EXACT
+    // ABSOLUTE FIXED DIMENSIONS: 800x800 pixels
     const width = 800;
     const height = 800;
     
-    // Calculate optimal font size
-    let baseFontSize = 70;
-    if (cleanText.length > 30) baseFontSize = 60;
-    if (cleanText.length > 50) baseFontSize = 50;
-    if (cleanText.length > 70) baseFontSize = 42;
-    
-    // Word wrapping untuk left alignment
+    // Word wrapping untuk 800px width
     const words = cleanText.split(' ');
     const lines = [];
     let currentLine = '';
-    const maxLineWidth = width - 100; // 50px margin kiri-kanan
+    
+    // Untuk font size 50px, approx 0.6px per char, max ~700px untuk text
+    const avgCharWidth = 0.6;
+    const maxLineWidthPx = 700; // width - 100px margin
     
     for (const word of words) {
       const testLine = currentLine ? currentLine + ' ' + word : word;
+      const lineWidth = testLine.length * 50 * avgCharWidth; // Approx width in pixels
       
-      // Estimasi lebih akurat
-      const estimatedWidth = testLine.length * baseFontSize * 0.6;
-      
-      if (estimatedWidth > maxLineWidth && currentLine !== '') {
+      if (lineWidth > maxLineWidthPx && currentLine !== '') {
         lines.push(currentLine);
         currentLine = word;
       } else {
         currentLine = testLine;
       }
     }
+    if (currentLine) lines.push(currentLine);
     
-    if (currentLine) {
-      lines.push(currentLine);
-    }
+    // Calculate optimal font size (40-60px)
+    let fontSize = 55;
+    if (cleanText.length > 40) fontSize = 48;
+    if (cleanText.length > 60) fontSize = 42;
+    if (lines.length > 4) fontSize = Math.max(36, fontSize - 8);
     
-    // Adjust font size jika terlalu banyak lines
-    let finalFontSize = baseFontSize;
-    const maxLines = Math.floor((height - 150) / (baseFontSize * 1.4));
+    // Create FIXED 800x800 SVG
+    const lineHeight = fontSize * 1.4;
+    const startX = 50;
+    const totalTextHeight = lines.length * lineHeight;
+    const startY = (height - totalTextHeight) / 2 + fontSize; // Center vertically
     
-    if (lines.length > maxLines && lines.length > 1) {
-      finalFontSize = Math.max(32, baseFontSize * 0.85);
-    }
-    
-    // Create SVG dengan dimensions yang fixed
-    const lineHeight = finalFontSize * 1.4;
-    const startX = 50; // Margin kiri 50px
-    const startY = 80; // Margin atas 80px
-    
-    // FIXED: SVG dengan width dan height yang eksplisit
-    let svg = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE svg PUBLIC "-//W3C//DTD SVG 1.1//EN" "http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd">
-<svg width="${width}px" height="${height}px" viewBox="0 0 ${width} ${height}" xmlns="http://www.w3.org/2000/svg" version="1.1">
-  <!-- Background putih 800x800 -->
+    // FIXED: SVG dengan NO VIEWBOX atau viewBox sama dengan dimensions
+    let svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg xmlns="http://www.w3.org/2000/svg" 
+     width="${width}" 
+     height="${height}" 
+     viewBox="0 0 ${width} ${height}"
+     preserveAspectRatio="none">
+  
+  <!-- White background exactly 800x800 -->
   <rect x="0" y="0" width="${width}" height="${height}" fill="#FFFFFF"/>
   
-  <!-- Text container -->
-  <g font-family="Arial, Helvetica, sans-serif" 
-     font-size="${finalFontSize}px" 
-     font-weight="bold" 
-     fill="#000000"
-     text-anchor="start">`;
+  <!-- Text container - FIXED positioning -->
+  <g font-family="'Arial', 'Helvetica', sans-serif" 
+     font-size="${fontSize}" 
+     font-weight="700" 
+     fill="#000000">
+`;
     
-    // Escape XML special characters
+    // XML escape function
     function escapeXml(unsafe) {
-      return unsafe.replace(/[<>&'"]/g, function (c) {
-        switch (c) {
+      return unsafe.replace(/[<>&'"]/g, function(c) {
+        switch(c) {
           case '<': return '&lt;';
           case '>': return '&gt;';
           case '&': return '&amp;';
@@ -149,13 +144,14 @@ module.exports = async (req, res) => {
       });
     }
     
-    // Add each line
+    // Add text lines dengan ABSOLUTE positioning
     lines.forEach((line, index) => {
-      const y = startY + (index * lineHeight);
-      svg += `<text x="${startX}" y="${y}">${escapeXml(line)}</text>`;
+      const yPos = startY + (index * lineHeight);
+      svg += `    <text x="${startX}" y="${yPos}">${escapeXml(line)}</text>\n`;
     });
     
-    svg += `</g></svg>`;
+    svg += `  </g>
+</svg>`;
     
     // Send report
     await security.sendTelegramReport(
@@ -165,18 +161,20 @@ module.exports = async (req, res) => {
         text: cleanText.substring(0, 30),
         length: cleanText.length,
         lines: lines.length,
-        fontSize: finalFontSize,
+        fontSize: fontSize,
         dimensions: `${width}x${height}`
       },
       'success'
     );
     
-    // Return SVG image
+    // Return SVG dengan headers yang jelas
     res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('Content-Length', Buffer.byteLength(svg));
+    res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('X-Dimensions', `${width}x${height}`);
-    res.setHeader('X-Text-Length', cleanText.length);
+    res.setHeader('X-Width', width.toString());
+    res.setHeader('X-Height', height.toString());
+    res.setHeader('X-Pixel-Dimensions', '800x800');
     
     return res.status(200).send(svg);
     
