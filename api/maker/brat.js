@@ -1,5 +1,4 @@
 const security = require('../security');
-const { createCanvas } = require('@napi-rs/canvas');
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -76,66 +75,63 @@ module.exports = async (req, res) => {
       });
     }
     
-    // Create canvas
+    // GENERATE SVG 800x800 dengan text rata kiri
     const width = 800;
     const height = 800;
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
     
-    // White background - POLOS
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, width, height);
+    // Calculate font size based on text length
+    let fontSize = 64; // Ukuran font lebih besar
     
-    // TEXT DRAWING - PAKAI APPROACH YANG BERBEDA
-    ctx.fillStyle = '#000000'; // Black text
+    // Adjust font size berdasarkan panjang text
+    if (cleanText.length > 40) fontSize = 56;
+    if (cleanText.length > 60) fontSize = 48;
     
-    // Coba pakai font yang pasti ada di system
-    // Di Vercel, biasanya ada font default
-    ctx.font = 'bold 60px "Arial"';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    // Simple text splitting
+    // Word wrapping untuk text rata kiri
     const words = cleanText.split(' ');
     const lines = [];
     let currentLine = words[0];
     
+    // Maximum characters per line (estimasi)
+    const maxCharsPerLine = Math.floor(80 / Math.ceil(cleanText.length / 40));
+    
     for (let i = 1; i < words.length; i++) {
-      const word = words[i];
-      const testLine = currentLine + ' ' + word;
-      const metrics = ctx.measureText(testLine);
+      const testLine = currentLine + ' ' + words[i];
+      // Estimasi: rata-rata 1.2 chars per pixel untuk font size ini
+      const estimatedWidth = testLine.length * fontSize * 0.6;
       
-      if (metrics.width < width - 100) {
-        currentLine = testLine;
-      } else {
+      if (estimatedWidth > width - 100) { // Margin 50px kiri-kanan
         lines.push(currentLine);
-        currentLine = word;
+        currentLine = words[i];
+      } else {
+        currentLine = testLine;
       }
     }
     lines.push(currentLine);
     
-    // Adjust font size based on lines
-    let fontSize = 60;
-    if (lines.length > 3) fontSize = 45;
-    if (lines.length > 5) fontSize = 35;
+    // Create SVG dengan text rata kiri
+    const lineHeight = fontSize * 1.4;
+    const startX = 50; // Margin kiri 50px
+    const startY = 100; // Mulai dari 100px dari atas
     
-    ctx.font = `bold ${fontSize}px "Arial"`;
+    let svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  <!-- Background putih -->
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
+  
+  <!-- Text container -->
+  <g font-family="Arial, Helvetica, sans-serif" 
+     font-size="${fontSize}" 
+     font-weight="bold" 
+     fill="#000000"
+     text-anchor="start">`;
     
-    // Draw each line
-    const lineHeight = fontSize * 1.3;
-    const startY = (height - (lines.length * lineHeight)) / 2 + fontSize / 2;
+    // Add each line dengan posisi yang tepat
+    lines.forEach((line, index) => {
+      const y = startY + (index * lineHeight);
+      svg += `<text x="${startX}" y="${y}">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`;
+    });
     
-    for (let i = 0; i < lines.length; i++) {
-      const y = startY + (i * lineHeight);
-      ctx.fillText(lines[i], width / 2, y);
-    }
-    
-    // DEBUG: Draw a red dot to see if canvas works
-    // ctx.fillStyle = '#FF0000';
-    // ctx.fillRect(10, 10, 5, 5);
-    
-    // Generate PNG
-    const pngBuffer = canvas.toBuffer('image/png');
+    svg += `</g></svg>`;
     
     // Send report
     await security.sendTelegramReport(
@@ -145,18 +141,21 @@ module.exports = async (req, res) => {
         text: cleanText.substring(0, 30),
         length: cleanText.length,
         lines: lines.length,
-        fontSize: fontSize
+        fontSize: fontSize,
+        alignment: 'left'
       },
       'success'
     );
     
-    // Return image
-    res.setHeader('Content-Type', 'image/png');
-    res.setHeader('Content-Length', pngBuffer.length);
+    // Return SVG image
+    res.setHeader('Content-Type', 'image/svg+xml');
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('X-Text', cleanText.substring(0, 50));
+    res.setHeader('X-Text-Length', cleanText.length);
+    res.setHeader('X-Font-Size', fontSize);
+    res.setHeader('X-Lines', lines.length);
+    res.setHeader('X-Alignment', 'left');
     
-    return res.status(200).send(pngBuffer);
+    return res.status(200).send(svg);
     
   } catch (error) {
     console.error('Brat API error:', error);
