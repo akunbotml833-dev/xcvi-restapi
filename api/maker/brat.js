@@ -1,33 +1,31 @@
-// CommonJS format untuk Vercel Functions
 const security = require('../security');
 
 module.exports = async (req, res) => {
-  // Enable CORS
-  res.setHeader('Access-Control-Allow-Credentials', true);
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
   
-  // Handle OPTIONS request for CORS
+  // Handle preflight
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
   }
   
-  // Apply security middleware
-  const securityCheck = security.securityMiddleware(req, res);
-  if (!securityCheck.allowed) {
-    return; // Response sudah dikirim oleh securityMiddleware
+  // Check rate limit
+  if (!security.securityMiddleware(req, res)) {
+    return; // Response sudah dikirim
   }
   
-  // Hanya terima GET request
+  // Only allow GET
   if (req.method !== 'GET') {
-    // Send error report to Telegram
+    // Send error report
     await security.sendTelegramReport(
       '/api/maker/brat',
       req,
       null,
       'error',
-      { message: 'Method not allowed' }
+      'Method not allowed'
     );
     
     return res.status(405).json({
@@ -37,22 +35,16 @@ module.exports = async (req, res) => {
   }
   
   try {
-    // Ambil query parameters
     const { text, model } = req.query;
     
-    console.log('API Request to /api/maker/brat:', { 
-      text: text?.substring(0, 50),
-      model,
-      ip: security.getClientIP(req)
-    });
-    
+    // Validation
     if (!text) {
       await security.sendTelegramReport(
         '/api/maker/brat',
         req,
         { text, model },
         'error',
-        { message: 'Text parameter is required' }
+        'Text parameter required'
       );
       
       return res.status(400).json({
@@ -63,23 +55,26 @@ module.exports = async (req, res) => {
       });
     }
     
-    // Simulasi response
+    // Simulate processing
+    await new Promise(resolve => setTimeout(resolve, 50));
+    
+    // Build response
     const response = {
       success: true,
       endpoint: '/api/maker/brat',
       parameters: {
-        text: text,
-        model: model || 'default'
+        text: text.substring(0, 500), // Limit text length
+        model: model || 'default',
+        length: text.length
       },
       result: {
-        sticker: `Sticker created: "${text}"`,
-        url: `https://xcvi-restapi/stickers/${encodeURIComponent(text)}.png`,
-        size: `${Math.floor(Math.random() * 1000) + 500}KB`,
+        sticker: `Sticker created: "${text.substring(0, 50)}${text.length > 50 ? '...' : ''}"`,
+        url: `https://xcvi-restapi.vercel.app/stickers/${Date.now()}.png`,
+        size: '512x512',
         format: 'PNG'
       },
       metadata: {
         status: 'success',
-        processed: true,
         timestamp: new Date().toISOString(),
         request_id: `req_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         client_ip: security.getClientIP(req),
@@ -87,24 +82,22 @@ module.exports = async (req, res) => {
       }
     };
     
-    // Kirim success report ke Telegram
-    await security.sendTelegramReport(
+    // Send success report (async, don't wait)
+    security.sendTelegramReport(
       '/api/maker/brat',
       req,
       { text: text.substring(0, 100), model },
       'success'
-    );
+    ).catch(err => console.log('Telegram report failed:', err.message));
     
-    // Set response header
+    // Return response
     res.setHeader('Content-Type', 'application/json');
-    
-    // Kirim response
     return res.status(200).json(response);
     
   } catch (error) {
-    console.error('API Error:', error);
+    console.error('Brat API error:', error);
     
-    // Send error report to Telegram
+    // Send error report
     await security.sendTelegramReport(
       '/api/maker/brat',
       req,
