@@ -79,56 +79,79 @@ module.exports = async (req, res) => {
     const width = 800;
     const height = 800;
     
-    // Calculate font size based on text length
-    let fontSize = 64; // Ukuran font lebih besar
+    // Calculate optimal font size
+    let baseFontSize = 70;
+    if (cleanText.length > 30) baseFontSize = 60;
+    if (cleanText.length > 50) baseFontSize = 50;
+    if (cleanText.length > 70) baseFontSize = 42;
     
-    // Adjust font size berdasarkan panjang text
-    if (cleanText.length > 40) fontSize = 56;
-    if (cleanText.length > 60) fontSize = 48;
-    
-    // Word wrapping untuk text rata kiri
+    // Word wrapping algorithm untuk left alignment
     const words = cleanText.split(' ');
     const lines = [];
-    let currentLine = words[0];
+    let currentLine = '';
+    const maxLineWidth = width - 100; // 50px margin kiri-kanan
     
-    // Maximum characters per line (estimasi)
-    const maxCharsPerLine = Math.floor(80 / Math.ceil(cleanText.length / 40));
-    
-    for (let i = 1; i < words.length; i++) {
-      const testLine = currentLine + ' ' + words[i];
-      // Estimasi: rata-rata 1.2 chars per pixel untuk font size ini
-      const estimatedWidth = testLine.length * fontSize * 0.6;
+    for (const word of words) {
+      const testLine = currentLine ? currentLine + ' ' + word : word;
       
-      if (estimatedWidth > width - 100) { // Margin 50px kiri-kanan
+      // Estimasi width: karakter * font size * 0.55
+      const estimatedWidth = testLine.length * baseFontSize * 0.55;
+      
+      if (estimatedWidth > maxLineWidth && currentLine !== '') {
         lines.push(currentLine);
-        currentLine = words[i];
+        currentLine = word;
       } else {
         currentLine = testLine;
       }
     }
-    lines.push(currentLine);
     
-    // Create SVG dengan text rata kiri
-    const lineHeight = fontSize * 1.4;
+    if (currentLine) {
+      lines.push(currentLine);
+    }
+    
+    // Adjust font size jika terlalu banyak lines
+    let finalFontSize = baseFontSize;
+    const maxLines = Math.floor((height - 150) / (baseFontSize * 1.4)); // Margin atas-bawah
+    
+    if (lines.length > maxLines) {
+      finalFontSize = baseFontSize * 0.8;
+    }
+    
+    // Create SVG
+    const lineHeight = finalFontSize * 1.4;
     const startX = 50; // Margin kiri 50px
-    const startY = 100; // Mulai dari 100px dari atas
+    const startY = 80; // Margin atas 80px
     
     let svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-  <!-- Background putih -->
+<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${width} ${height}">
+  <!-- Background putih polos -->
   <rect width="100%" height="100%" fill="#FFFFFF"/>
   
   <!-- Text container -->
-  <g font-family="Arial, Helvetica, sans-serif" 
-     font-size="${fontSize}" 
-     font-weight="bold" 
+  <g font-family="'Arial', 'Helvetica', sans-serif" 
+     font-size="${finalFontSize}" 
+     font-weight="700" 
      fill="#000000"
-     text-anchor="start">`;
+     text-anchor="start"
+     dominant-baseline="hanging">`;
     
-    // Add each line dengan posisi yang tepat
+    // Escape XML special characters
+    function escapeXml(unsafe) {
+      return unsafe.replace(/[<>&'"]/g, function (c) {
+        switch (c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+        }
+      });
+    }
+    
+    // Add each line
     lines.forEach((line, index) => {
       const y = startY + (index * lineHeight);
-      svg += `<text x="${startX}" y="${y}">${line.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')}</text>`;
+      svg += `<text x="${startX}" y="${y}">${escapeXml(line)}</text>`;
     });
     
     svg += `</g></svg>`;
@@ -141,7 +164,7 @@ module.exports = async (req, res) => {
         text: cleanText.substring(0, 30),
         length: cleanText.length,
         lines: lines.length,
-        fontSize: fontSize,
+        fontSize: finalFontSize,
         alignment: 'left'
       },
       'success'
@@ -150,10 +173,10 @@ module.exports = async (req, res) => {
     // Return SVG image
     res.setHeader('Content-Type', 'image/svg+xml');
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    res.setHeader('X-Text-Length', cleanText.length);
-    res.setHeader('X-Font-Size', fontSize);
-    res.setHeader('X-Lines', lines.length);
-    res.setHeader('X-Alignment', 'left');
+    res.setHeader('Content-Length', Buffer.byteLength(svg));
+    res.setHeader('X-API-Endpoint', '/api/maker/brat');
+    res.setHeader('X-Text', cleanText.substring(0, 50));
+    res.setHeader('X-Length', cleanText.length);
     
     return res.status(200).send(svg);
     
