@@ -1,9 +1,6 @@
 const security = require('../security');
-const { createCanvas, GlobalFonts } = require('@napi-rs/canvas');
-
-// Load font (kita pakai font default system atau Arial)
-// Untuk Vercel, kita perlu register font atau pakai font built-in
-// Font built-in: 'sans-serif', 'serif', 'monospace'
+const { createCanvas, loadImage, registerFont } = require('@napi-rs/canvas');
+const path = require('path');
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -88,90 +85,101 @@ module.exports = async (req, res) => {
     const canvas = createCanvas(width, height);
     const ctx = canvas.getContext('2d');
     
-    // Draw white background
+    // Draw white background (putih polos)
     ctx.fillStyle = '#FFFFFF';
     ctx.fillRect(0, 0, width, height);
     
-    // Draw border (optional)
-    ctx.strokeStyle = '#DDDDDD';
-    ctx.lineWidth = 4;
-    ctx.strokeRect(20, 20, width - 40, height - 40);
+    // Configure text - TIDAK ADA BORDER/LINE
     
-    // Configure text
     const maxWidth = width - 100; // Margin kiri-kanan 50px
-    let fontSize = 72; // Start dengan font size besar
+    let fontSize = 64; // Start dengan font size
     
-    // Function untuk wrap text
-    function wrapText(context, text, x, y, maxWidth, fontSize) {
-      const lines = [];
+    // Function untuk wrap text dengan font yang tersedia
+    function wrapTextAndDraw(context, text, x, y, maxWidth, initialFontSize) {
       const words = text.split(' ');
-      let line = '';
-      
-      // Reduce font size sampai pas
-      let currentFontSize = fontSize;
+      let lines = [];
+      let currentFontSize = initialFontSize;
       let fits = false;
       
+      // Coba dari font size besar ke kecil
       while (!fits && currentFontSize >= 24) {
-        context.font = `bold ${currentFontSize}px 'sans-serif'`;
-        line = '';
+        // Coba beberapa font family
+        const fontFamilies = [
+          'Arial',
+          'Helvetica',
+          'sans-serif',
+          'DejaVu Sans',
+          'Liberation Sans'
+        ];
         
-        for (let i = 0; i < words.length; i++) {
-          const testLine = line + words[i] + ' ';
-          const metrics = context.measureText(testLine);
-          const testWidth = metrics.width;
+        for (const fontFamily of fontFamilies) {
+          context.font = `bold ${currentFontSize}px ${fontFamily}`;
+          lines = [];
+          let line = '';
           
-          if (testWidth > maxWidth && i > 0) {
-            lines.push(line);
-            line = words[i] + ' ';
-          } else {
-            line = testLine;
+          for (let i = 0; i < words.length; i++) {
+            const testLine = line + words[i] + ' ';
+            const metrics = context.measureText(testLine);
+            const testWidth = metrics.width;
+            
+            if (testWidth > maxWidth && i > 0) {
+              lines.push(line.trim());
+              line = words[i] + ' ';
+            } else {
+              line = testLine;
+            }
+          }
+          
+          if (line) {
+            lines.push(line.trim());
+          }
+          
+          // Cek apakah text muat dalam tinggi canvas
+          const totalHeight = lines.length * currentFontSize * 1.3;
+          if (totalHeight < height - 100 && lines.length <= 6) {
+            // Draw the text
+            const lineHeight = currentFontSize * 1.3;
+            const startY = y - ((lines.length - 1) * lineHeight) / 2;
+            
+            // Set text color - hitam solid
+            context.fillStyle = '#000000';
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            lines.forEach((lineText, index) => {
+              const yPos = startY + (index * lineHeight);
+              context.fillText(lineText, x, yPos);
+            });
+            
+            fits = true;
+            break;
           }
         }
         
-        if (line) {
-          lines.push(line);
-        }
-        
-        // Cek apakah text muat dalam tinggi canvas
-        const totalHeight = lines.length * currentFontSize * 1.2;
-        if (totalHeight < height - 100 && lines.length <= 5) {
-          fits = true;
-        } else {
+        if (!fits) {
           currentFontSize -= 4;
-          lines.length = 0; // Reset lines
         }
       }
       
-      // Draw lines
-      const lineHeight = currentFontSize * 1.2;
-      const startY = y - ((lines.length - 1) * lineHeight) / 2;
-      
-      lines.forEach((line, index) => {
-        const textWidth = context.measureText(line.trim()).width;
-        const xPos = x - textWidth / 2;
-        const yPos = startY + (index * lineHeight);
-        
-        // Text shadow
-        context.fillStyle = 'rgba(0, 0, 0, 0.1)';
-        context.fillText(line.trim(), xPos + 2, yPos + 2);
-        
-        // Main text
-        context.fillStyle = '#333333';
-        context.fillText(line.trim(), xPos, yPos);
-      });
-      
-      return { fontSize: currentFontSize, lineCount: lines.length };
+      return { fontSize: currentFontSize, lineCount: lines.length, fits };
     }
     
-    // Set text properties
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    
-    // Wrap and draw text
+    // Coba draw text
     const centerX = width / 2;
     const centerY = height / 2;
     
-    const textInfo = wrapText(ctx, cleanText, centerX, centerY, maxWidth, fontSize);
+    const textInfo = wrapTextAndDraw(ctx, cleanText, centerX, centerY, maxWidth, fontSize);
+    
+    // Jika tidak muat sama sekali, kasih pesan error
+    if (!textInfo.fits) {
+      // Draw error message
+      ctx.font = 'bold 36px Arial';
+      ctx.fillStyle = '#FF0000';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('Text too long', centerX, centerY - 30);
+      ctx.fillText('Max 80 chars', centerX, centerY + 30);
+    }
     
     // Generate PNG buffer
     const pngBuffer = canvas.toBuffer('image/png');
@@ -184,7 +192,8 @@ module.exports = async (req, res) => {
         text: cleanText.substring(0, 30),
         length: cleanText.length,
         fontSize: textInfo.fontSize,
-        lines: textInfo.lineCount
+        lines: textInfo.lineCount,
+        fits: textInfo.fits
       },
       'success'
     );
@@ -196,6 +205,7 @@ module.exports = async (req, res) => {
     res.setHeader('X-API-Endpoint', '/api/maker/brat');
     res.setHeader('X-Text-Length', cleanText.length);
     res.setHeader('X-Font-Size', textInfo.fontSize);
+    res.setHeader('X-Lines', textInfo.lineCount);
     
     // Return PNG image
     return res.status(200).send(pngBuffer);
