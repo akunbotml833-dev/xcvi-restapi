@@ -1,5 +1,4 @@
 const security = require('../security');
-const { createCanvas } = require('@napi-rs/canvas');
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -76,88 +75,52 @@ module.exports = async (req, res) => {
       });
     }
     
-    // Create canvas
+    // GENERATE SVG - 100% WORK DI MANA SAJA
     const width = 800;
     const height = 800;
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
     
-    // White background - POLOS
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, width, height);
-    
-    // Text properties
-    const maxWidth = width - 100;
+    // Calculate font size based on text length
     let fontSize = 60;
+    if (cleanText.length > 40) fontSize = 45;
+    if (cleanText.length > 60) fontSize = 35;
     
-    // Simple text drawing - coba beberapa font
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillStyle = '#000000'; // Black text
+    // Simple word wrapping for SVG
+    const words = cleanText.split(' ');
+    const lines = [];
+    let currentLine = words[0];
+    const maxCharsPerLine = Math.max(15, Math.floor(80 / (cleanText.length > 40 ? 2 : 1)));
     
-    // Coba font yang berbeda
-    const fonts = [
-      '60px Arial',
-      '60px Helvetica',
-      '60px sans-serif',
-      '55px Arial',
-      '50px Arial',
-      '45px Arial'
-    ];
-    
-    let textFits = false;
-    let finalFont = '';
-    let lines = [];
-    
-    for (const font of fonts) {
-      ctx.font = `bold ${font}`;
-      
-      // Simple line breaking
-      const words = cleanText.split(' ');
-      lines = [];
-      let currentLine = words[0];
-      
-      for (let i = 1; i < words.length; i++) {
-        const word = words[i];
-        const width = ctx.measureText(currentLine + ' ' + word).width;
-        if (width < maxWidth) {
-          currentLine += ' ' + word;
-        } else {
-          lines.push(currentLine);
-          currentLine = word;
-        }
-      }
-      lines.push(currentLine);
-      
-      // Check if fits
-      const lineHeight = parseInt(font) * 1.3;
-      const totalHeight = lines.length * lineHeight;
-      
-      if (totalHeight < height - 100 && lines.length <= 5) {
-        finalFont = font;
-        textFits = true;
-        break;
+    for (let i = 1; i < words.length; i++) {
+      if ((currentLine + ' ' + words[i]).length > maxCharsPerLine) {
+        lines.push(currentLine);
+        currentLine = words[i];
+      } else {
+        currentLine += ' ' + words[i];
       }
     }
+    lines.push(currentLine);
     
-    if (textFits && finalFont) {
-      ctx.font = `bold ${finalFont}`;
-      const fontSizeNum = parseInt(finalFont);
-      const lineHeight = fontSizeNum * 1.3;
-      const startY = (height - (lines.length * lineHeight)) / 2 + fontSizeNum / 2;
-      
-      lines.forEach((line, index) => {
-        const y = startY + (index * lineHeight);
-        ctx.fillText(line, width / 2, y);
-      });
-    } else {
-      // Fallback: draw single line dengan font size kecil
-      ctx.font = 'bold 40px Arial';
-      ctx.fillText(cleanText, width / 2, height / 2);
-    }
+    // Create SVG
+    const lineHeight = fontSize * 1.3;
+    const startY = (height - (lines.length * lineHeight)) / 2 + fontSize;
     
-    // Generate PNG
-    const pngBuffer = canvas.toBuffer('image/png');
+    let svg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
+  
+  <text font-family="Arial, Helvetica, sans-serif" 
+        font-size="${fontSize}" 
+        font-weight="bold" 
+        fill="#000000" 
+        text-anchor="middle">`;
+    
+    // Add each line
+    lines.forEach((line, index) => {
+      const y = startY + (index * lineHeight);
+      svg += `<tspan x="${width/2}" y="${y}">${line}</tspan>`;
+    });
+    
+    svg += `</text></svg>`;
     
     // Send report
     await security.sendTelegramReport(
@@ -166,15 +129,19 @@ module.exports = async (req, res) => {
       { 
         text: cleanText.substring(0, 30),
         length: cleanText.length,
-        lines: lines.length || 1
+        lines: lines.length,
+        fontSize: fontSize,
+        method: 'SVG'
       },
       'success'
     );
     
-    // Return image
-    res.setHeader('Content-Type', 'image/png');
+    // Return SVG image
+    res.setHeader('Content-Type', 'image/svg+xml');
     res.setHeader('Cache-Control', 'public, max-age=86400');
-    return res.status(200).send(pngBuffer);
+    res.setHeader('X-Text', cleanText.substring(0, 50));
+    
+    return res.status(200).send(svg);
     
   } catch (error) {
     console.error('Brat API error:', error);
