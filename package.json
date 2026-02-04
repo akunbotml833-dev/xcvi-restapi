@@ -11,6 +11,7 @@
   "dependencies": {
     "@vercel/node": "^4.0.0",
     "@napi-rs/canvas": "^0.1.44",
+    "@resvg/resvg-js": "^2.6.0",
     "axios": "^1.6.8",
     "crypto": "^1.0.1"
   },
