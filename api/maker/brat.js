@@ -1,4 +1,5 @@
 const security = require('../security');
+const { createCanvas } = require('@napi-rs/canvas');
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -75,52 +76,66 @@ module.exports = async (req, res) => {
       });
     }
     
-    // GENERATE SVG - 100% WORK DI MANA SAJA
+    // Create canvas
     const width = 800;
     const height = 800;
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
     
-    // Calculate font size based on text length
-    let fontSize = 60;
-    if (cleanText.length > 40) fontSize = 45;
-    if (cleanText.length > 60) fontSize = 35;
+    // White background - POLOS
+    ctx.fillStyle = '#FFFFFF';
+    ctx.fillRect(0, 0, width, height);
     
-    // Simple word wrapping for SVG
+    // TEXT DRAWING - PAKAI APPROACH YANG BERBEDA
+    ctx.fillStyle = '#000000'; // Black text
+    
+    // Coba pakai font yang pasti ada di system
+    // Di Vercel, biasanya ada font default
+    ctx.font = 'bold 60px "Arial"';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // Simple text splitting
     const words = cleanText.split(' ');
     const lines = [];
     let currentLine = words[0];
-    const maxCharsPerLine = Math.max(15, Math.floor(80 / (cleanText.length > 40 ? 2 : 1)));
     
     for (let i = 1; i < words.length; i++) {
-      if ((currentLine + ' ' + words[i]).length > maxCharsPerLine) {
-        lines.push(currentLine);
-        currentLine = words[i];
+      const word = words[i];
+      const testLine = currentLine + ' ' + word;
+      const metrics = ctx.measureText(testLine);
+      
+      if (metrics.width < width - 100) {
+        currentLine = testLine;
       } else {
-        currentLine += ' ' + words[i];
+        lines.push(currentLine);
+        currentLine = word;
       }
     }
     lines.push(currentLine);
     
-    // Create SVG
+    // Adjust font size based on lines
+    let fontSize = 60;
+    if (lines.length > 3) fontSize = 45;
+    if (lines.length > 5) fontSize = 35;
+    
+    ctx.font = `bold ${fontSize}px "Arial"`;
+    
+    // Draw each line
     const lineHeight = fontSize * 1.3;
-    const startY = (height - (lines.length * lineHeight)) / 2 + fontSize;
+    const startY = (height - (lines.length * lineHeight)) / 2 + fontSize / 2;
     
-    let svg = `<?xml version="1.0" encoding="UTF-8"?>
-<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
-  <rect width="100%" height="100%" fill="#FFFFFF"/>
-  
-  <text font-family="Arial, Helvetica, sans-serif" 
-        font-size="${fontSize}" 
-        font-weight="bold" 
-        fill="#000000" 
-        text-anchor="middle">`;
+    for (let i = 0; i < lines.length; i++) {
+      const y = startY + (i * lineHeight);
+      ctx.fillText(lines[i], width / 2, y);
+    }
     
-    // Add each line
-    lines.forEach((line, index) => {
-      const y = startY + (index * lineHeight);
-      svg += `<tspan x="${width/2}" y="${y}">${line}</tspan>`;
-    });
+    // DEBUG: Draw a red dot to see if canvas works
+    // ctx.fillStyle = '#FF0000';
+    // ctx.fillRect(10, 10, 5, 5);
     
-    svg += `</text></svg>`;
+    // Generate PNG
+    const pngBuffer = canvas.toBuffer('image/png');
     
     // Send report
     await security.sendTelegramReport(
@@ -130,18 +145,18 @@ module.exports = async (req, res) => {
         text: cleanText.substring(0, 30),
         length: cleanText.length,
         lines: lines.length,
-        fontSize: fontSize,
-        method: 'SVG'
+        fontSize: fontSize
       },
       'success'
     );
     
-    // Return SVG image
-    res.setHeader('Content-Type', 'image/svg+xml');
+    // Return image
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Length', pngBuffer.length);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('X-Text', cleanText.substring(0, 50));
     
-    return res.status(200).send(svg);
+    return res.status(200).send(pngBuffer);
     
   } catch (error) {
     console.error('Brat API error:', error);
