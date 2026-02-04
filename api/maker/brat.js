@@ -1,4 +1,5 @@
 const security = require('../security');
+const { Resvg } = require('@resvg/resvg-js');
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -84,13 +85,13 @@ module.exports = async (req, res) => {
     const lines = [];
     let currentLine = '';
     
-    // Untuk font size 50px, approx 0.6px per char, max ~700px untuk text
+    // Untuk font size 50px, approx 0.6px per char
     const avgCharWidth = 0.6;
     const maxLineWidthPx = 700; // width - 100px margin
     
     for (const word of words) {
       const testLine = currentLine ? currentLine + ' ' + word : word;
-      const lineWidth = testLine.length * 50 * avgCharWidth; // Approx width in pixels
+      const lineWidth = testLine.length * 50 * avgCharWidth;
       
       if (lineWidth > maxLineWidthPx && currentLine !== '') {
         lines.push(currentLine);
@@ -107,31 +108,32 @@ module.exports = async (req, res) => {
     if (cleanText.length > 60) fontSize = 42;
     if (lines.length > 4) fontSize = Math.max(36, fontSize - 8);
     
-    // Create FIXED 800x800 SVG
+    // Create SVG string
     const lineHeight = fontSize * 1.4;
     const startX = 50;
     const totalTextHeight = lines.length * lineHeight;
-    const startY = (height - totalTextHeight) / 2 + fontSize; // Center vertically
+    const startY = (height - totalTextHeight) / 2 + fontSize;
     
-    // FIXED: SVG dengan NO VIEWBOX atau viewBox sama dengan dimensions
-    let svg = `<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<svg xmlns="http://www.w3.org/2000/svg" 
-     width="${width}" 
-     height="${height}" 
-     viewBox="0 0 ${width} ${height}"
-     preserveAspectRatio="none">
+    // Build SVG with explicit styles
+    let svgString = `<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+  <defs>
+    <style type="text/css">
+      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap');
+      text { 
+        font-family: 'Inter', Arial, sans-serif; 
+        font-weight: 700;
+      }
+    </style>
+  </defs>
   
-  <!-- White background exactly 800x800 -->
-  <rect x="0" y="0" width="${width}" height="${height}" fill="#FFFFFF"/>
+  <!-- White background -->
+  <rect width="100%" height="100%" fill="#FFFFFF"/>
   
-  <!-- Text container - FIXED positioning -->
-  <g font-family="'Arial', 'Helvetica', sans-serif" 
-     font-size="${fontSize}" 
-     font-weight="700" 
-     fill="#000000">
-`;
+  <!-- Text container -->
+  <g fill="#000000" font-size="${fontSize}">`;
     
-    // XML escape function
+    // XML escape
     function escapeXml(unsafe) {
       return unsafe.replace(/[<>&'"]/g, function(c) {
         switch(c) {
@@ -144,14 +146,27 @@ module.exports = async (req, res) => {
       });
     }
     
-    // Add text lines dengan ABSOLUTE positioning
+    // Add text lines
     lines.forEach((line, index) => {
       const yPos = startY + (index * lineHeight);
-      svg += `    <text x="${startX}" y="${yPos}">${escapeXml(line)}</text>\n`;
+      svgString += `\n    <text x="${startX}" y="${yPos}">${escapeXml(line)}</text>`;
     });
     
-    svg += `  </g>
-</svg>`;
+    svgString += '\n  </g>\n</svg>';
+    
+    // Convert SVG to PNG
+    const resvg = new Resvg(svgString, {
+      fitTo: {
+        mode: 'width',
+        value: width,
+      },
+      font: {
+        loadSystemFonts: true,
+      },
+    });
+    
+    const pngData = resvg.render();
+    const pngBuffer = pngData.asPng();
     
     // Send report
     await security.sendTelegramReport(
@@ -162,24 +177,24 @@ module.exports = async (req, res) => {
         length: cleanText.length,
         lines: lines.length,
         fontSize: fontSize,
+        format: 'PNG',
         dimensions: `${width}x${height}`
       },
       'success'
     );
     
-    // Return SVG dengan headers yang jelas
-    res.setHeader('Content-Type', 'image/svg+xml');
-    res.setHeader('Content-Length', Buffer.byteLength(svg));
+    // Return PNG image
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Length', pngBuffer.length);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('X-Dimensions', `${width}x${height}`);
-    res.setHeader('X-Width', width.toString());
-    res.setHeader('X-Height', height.toString());
-    res.setHeader('X-Pixel-Dimensions', '800x800');
+    res.setHeader('X-Format', 'PNG');
+    res.setHeader('X-Text-Length', cleanText.length);
     
-    return res.status(200).send(svg);
+    return res.status(200).send(pngBuffer);
     
   } catch (error) {
-    console.error('Brat API error:', error);
+    console.error('Brat PNG API error:', error);
     
     await security.sendTelegramReport(
       '/api/maker/brat',
@@ -189,10 +204,11 @@ module.exports = async (req, res) => {
       error
     );
     
+    // Fallback to JSON error
     res.setHeader('Content-Type', 'application/json');
     return res.status(500).json({
       success: false,
-      error: 'Failed to generate image',
+      error: 'Failed to generate PNG image',
       message: error.message,
       timestamp: new Date().toISOString()
     });
