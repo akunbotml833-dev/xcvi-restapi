@@ -1,5 +1,7 @@
 const security = require('../security');
-const { Resvg } = require('@resvg/resvg-js');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
+const path = require('path');
+const fs = require('fs').promises;
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -76,99 +78,122 @@ module.exports = async (req, res) => {
       });
     }
     
-    // ABSOLUTE FIXED DIMENSIONS: 800x800 pixels
+    // LOAD TEMPLATE PNG dari assets folder (100x100)
+    const templatePath = path.join(process.cwd(), 'assets', 'brat.png');
+    
+    let templateImage;
+    try {
+      // Coba baca file template
+      templateImage = await loadImage(templatePath);
+      console.log('Template loaded:', templateImage.width, 'x', templateImage.height);
+    } catch (templateError) {
+      console.log('Template not found, using white background:', templateError.message);
+      // Fallback ke background putih
+      templateImage = null;
+    }
+    
+    // CREATE CANVAS 800x800
     const width = 800;
     const height = 800;
+    const canvas = createCanvas(width, height);
+    const ctx = canvas.getContext('2d');
     
-    // Word wrapping untuk 800px width
+    // DRAW BACKGROUND
+    if (templateImage) {
+      // Resize template 100x100 ke 800x800
+      ctx.drawImage(templateImage, 0, 0, width, height);
+    } else {
+      // Fallback: white background
+      ctx.fillStyle = '#FFFFFF';
+      ctx.fillRect(0, 0, width, height);
+    }
+    
+    // TEXT CONFIGURATION
+    ctx.fillStyle = '#000000'; // Black text
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+    
+    // Cari font yang available
+    const testFonts = ['Arial', 'Helvetica', 'sans-serif', 'Verdana', 'Tahoma'];
+    let selectedFont = 'Arial';
+    let fontSize = 60;
+    
+    // Test font
+    for (const font of testFonts) {
+      try {
+        ctx.font = `bold ${fontSize}px "${font}"`;
+        const metrics = ctx.measureText('Test');
+        if (metrics.width > 0) {
+          selectedFont = font;
+          break;
+        }
+      } catch (e) {
+        continue;
+      }
+    }
+    
+    // WORD WRAPPING
     const words = cleanText.split(' ');
     const lines = [];
     let currentLine = '';
+    const maxWidth = width - 100; // 50px margin kiri-kanan
     
-    // Untuk font size 50px, approx 0.6px per char
-    const avgCharWidth = 0.6;
-    const maxLineWidthPx = 700; // width - 100px margin
+    // Set font untuk wrapping calculation
+    ctx.font = `bold ${fontSize}px "${selectedFont}"`;
     
+    // Simple wrapping algorithm
     for (const word of words) {
       const testLine = currentLine ? currentLine + ' ' + word : word;
-      const lineWidth = testLine.length * 50 * avgCharWidth;
+      const metrics = ctx.measureText(testLine);
       
-      if (lineWidth > maxLineWidthPx && currentLine !== '') {
+      if (metrics.width > maxWidth && currentLine !== '') {
         lines.push(currentLine);
         currentLine = word;
+        
+        // Adjust font size jika terlalu banyak lines
+        if (lines.length > 6) {
+          fontSize = Math.max(32, fontSize - 8);
+          ctx.font = `bold ${fontSize}px "${selectedFont}"`;
+        }
       } else {
         currentLine = testLine;
       }
     }
     if (currentLine) lines.push(currentLine);
     
-    // Calculate optimal font size (40-60px)
-    let fontSize = 55;
-    if (cleanText.length > 40) fontSize = 48;
-    if (cleanText.length > 60) fontSize = 42;
-    if (lines.length > 4) fontSize = Math.max(36, fontSize - 8);
-    
-    // Create SVG string
-    const lineHeight = fontSize * 1.4;
-    const startX = 50;
-    const totalTextHeight = lines.length * lineHeight;
-    const startY = (height - totalTextHeight) / 2 + fontSize;
-    
-    // Build SVG with explicit styles
-    let svgString = `<?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-  <defs>
-    <style type="text/css">
-      @import url('https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap');
-      text { 
-        font-family: 'Inter', Arial, sans-serif; 
-        font-weight: 700;
-      }
-    </style>
-  </defs>
-  
-  <!-- White background -->
-  <rect width="100%" height="100%" fill="#FFFFFF"/>
-  
-  <!-- Text container -->
-  <g fill="#000000" font-size="${fontSize}">`;
-    
-    // XML escape
-    function escapeXml(unsafe) {
-      return unsafe.replace(/[<>&'"]/g, function(c) {
-        switch(c) {
-          case '<': return '&lt;';
-          case '>': return '&gt;';
-          case '&': return '&amp;';
-          case '\'': return '&apos;';
-          case '"': return '&quot;';
-        }
-      });
+    // Adjust font size berdasarkan jumlah line
+    if (lines.length > 4) {
+      fontSize = Math.max(40, 60 - (lines.length * 4));
+      ctx.font = `bold ${fontSize}px "${selectedFont}"`;
     }
     
-    // Add text lines
+    // POSITIONING - RATA KIRI
+    const lineHeight = fontSize * 1.4;
+    const marginLeft = 60;
+    const marginTop = 80;
+    
+    // Center vertically jika text pendek
+    let startY = marginTop;
+    const totalTextHeight = lines.length * lineHeight;
+    if (totalTextHeight < (height - 200)) {
+      startY = (height - totalTextHeight) / 2;
+    }
+    
+    // DRAW TEXT LINES
     lines.forEach((line, index) => {
       const yPos = startY + (index * lineHeight);
-      svgString += `\n    <text x="${startX}" y="${yPos}">${escapeXml(line)}</text>`;
+      ctx.fillText(line, marginLeft, yPos);
     });
     
-    svgString += '\n  </g>\n</svg>';
+    // OPTIONAL: Add watermark atau border
+    // ctx.strokeStyle = '#DDDDDD';
+    // ctx.lineWidth = 2;
+    // ctx.strokeRect(20, 20, width - 40, height - 40);
     
-    // Convert SVG to PNG
-    const resvg = new Resvg(svgString, {
-      fitTo: {
-        mode: 'width',
-        value: width,
-      },
-      font: {
-        loadSystemFonts: true,
-      },
-    });
+    // GENERATE PNG
+    const pngBuffer = canvas.toBuffer('image/png');
     
-    const pngData = resvg.render();
-    const pngBuffer = pngData.asPng();
-    
-    // Send report
+    // SEND TELEGRAM REPORT
     await security.sendTelegramReport(
       '/api/maker/brat',
       req,
@@ -177,24 +202,26 @@ module.exports = async (req, res) => {
         length: cleanText.length,
         lines: lines.length,
         fontSize: fontSize,
-        format: 'PNG',
+        font: selectedFont,
+        template: templateImage ? 'used' : 'white_bg',
         dimensions: `${width}x${height}`
       },
       'success'
     );
     
-    // Return PNG image
+    // SET RESPONSE HEADERS
     res.setHeader('Content-Type', 'image/png');
     res.setHeader('Content-Length', pngBuffer.length);
     res.setHeader('Cache-Control', 'public, max-age=86400');
     res.setHeader('X-Dimensions', `${width}x${height}`);
     res.setHeader('X-Format', 'PNG');
-    res.setHeader('X-Text-Length', cleanText.length);
+    res.setHeader('X-Text', cleanText.substring(0, 50));
     
+    // RETURN PNG
     return res.status(200).send(pngBuffer);
     
   } catch (error) {
-    console.error('Brat PNG API error:', error);
+    console.error('Brat API error:', error);
     
     await security.sendTelegramReport(
       '/api/maker/brat',
@@ -204,11 +231,10 @@ module.exports = async (req, res) => {
       error
     );
     
-    // Fallback to JSON error
     res.setHeader('Content-Type', 'application/json');
     return res.status(500).json({
       success: false,
-      error: 'Failed to generate PNG image',
+      error: 'Failed to generate sticker',
       message: error.message,
       timestamp: new Date().toISOString()
     });
