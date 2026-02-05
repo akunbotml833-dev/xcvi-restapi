@@ -1,0 +1,1628 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XCVI RESTAPI</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --primary: #0066ff;
+            --primary-dark: #0033cc;
+            --primary-light: #3399ff;
+            --accent: #00ccff;
+            --bg-dark: #0a0a0f;
+            --bg-card: #121218;
+            --bg-darker: #07070c;
+            --text-light: #ffffff;
+            --text-gray: #a0a0b0;
+            --success: #00ff88;
+            --warning: #ffaa00;
+            --error: #ff3366;
+            --border: #22222a;
+            --glass: rgba(255, 255, 255, 0.05);
+            --shadow: 0 8px 32px rgba(0, 102, 255, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text-light);
+            line-height: 1.6;
+            overflow-x: hidden;
+            min-height: 100vh;
+        }
+
+        /* Marquee Container */
+        .marquee-container {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            height: 30px;
+            overflow: hidden;
+            z-index: 1000;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .marquee-content {
+            display: flex;
+            align-items: center;
+            height: 100%;
+            animation: marquee 30s linear infinite;
+            white-space: nowrap;
+            padding-left: 100%;
+        }
+
+        .marquee-text {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 0 20px;
+            font-size: 12px;
+            font-weight: 500;
+            color: white;
+        }
+
+        .marquee-text i {
+            font-size: 10px;
+            opacity: 0.8;
+        }
+
+        @keyframes marquee {
+            0% { transform: translateX(0); }
+            100% { transform: translateX(-100%); }
+        }
+
+        /* Main Container */
+        .main-container {
+            min-height: 100vh;
+            margin-top: 30px; /* Untuk marquee */
+        }
+
+        /* Header */
+        .header {
+            position: sticky;
+            top: 30px;
+            z-index: 900;
+            background: var(--bg-darker);
+            border-bottom: 1px solid var(--border);
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            backdrop-filter: blur(10px);
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .logo {
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 2px solid var(--accent);
+        }
+
+        .logo-text {
+            font-size: 1.2rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-right {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .menu-toggle {
+            background: none;
+            border: none;
+            color: var(--text-light);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.3s ease;
+        }
+
+        .menu-toggle:hover {
+            background: var(--glass);
+            color: var(--accent);
+        }
+
+        /* Sidebar */
+        .sidebar-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.7);
+            z-index: 999;
+            backdrop-filter: blur(5px);
+        }
+
+        .sidebar-overlay.active {
+            display: block;
+        }
+
+        .sidebar {
+            position: fixed;
+            top: 0;
+            right: -400px;
+            width: 380px;
+            max-width: 90%;
+            height: 100vh;
+            background: linear-gradient(180deg, var(--bg-darker), var(--bg-card));
+            border-left: 1px solid var(--border);
+            box-shadow: -10px 0 40px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            transition: right 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            overflow-y: auto;
+        }
+
+        .sidebar.active {
+            right: 0;
+        }
+
+        .sidebar-header {
+            padding: 2rem;
+            text-align: center;
+            border-bottom: 1px solid var(--border);
+        }
+
+        .sidebar-close {
+            position: absolute;
+            top: 1rem;
+            left: 1rem;
+            background: none;
+            border: none;
+            color: var(--text-gray);
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: color 0.3s ease;
+        }
+
+        .sidebar-close:hover {
+            color: var(--error);
+        }
+
+        .sidebar-title {
+            font-size: 1.3rem;
+            margin-bottom: 0.5rem;
+            color: var(--text-light);
+        }
+
+        .sidebar-subtitle {
+            color: var(--text-gray);
+            font-size: 0.9rem;
+        }
+
+        .sidebar-content {
+            flex: 1;
+            padding: 1.5rem;
+            overflow-y: auto;
+        }
+
+        .sidebar-section {
+            margin-bottom: 2rem;
+        }
+
+        .sidebar-section-title {
+            color: var(--accent);
+            font-size: 0.9rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 1rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .sidebar-section-title i {
+            font-size: 0.8rem;
+        }
+
+        .category-list {
+            display: flex;
+            flex-direction: column;
+            gap: 0.5rem;
+        }
+
+        .category-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0.8rem 1rem;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .category-item:hover {
+            background: rgba(0, 102, 255, 0.1);
+            border-color: var(--primary);
+            transform: translateX(-5px);
+        }
+
+        .category-item.active {
+            background: var(--primary);
+            border-color: var(--accent);
+        }
+
+        .category-count {
+            background: var(--primary-dark);
+            color: white;
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            border-radius: 12px;
+        }
+
+        .contact-links {
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+        }
+
+        .contact-link {
+            display: flex;
+            align-items: center;
+            gap: 0.8rem;
+            padding: 0.8rem;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-light);
+            text-decoration: none;
+            transition: all 0.3s ease;
+        }
+
+        .contact-link:hover {
+            background: var(--primary);
+            border-color: var(--accent);
+            transform: translateX(-5px);
+        }
+
+        .contact-link i {
+            width: 16px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            padding: 2rem;
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        /* Hero Section */
+        .hero {
+            text-align: center;
+            margin-bottom: 3rem;
+            padding: 2rem;
+        }
+
+        .hero-title {
+            font-size: 2.5rem;
+            font-weight: 700;
+            margin-bottom: 1rem;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .hero-subtitle {
+            color: var(--text-gray);
+            font-size: 1.1rem;
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        /* Controls */
+        .controls {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            flex-wrap: wrap;
+        }
+
+        .search-box {
+            flex: 1;
+            min-width: 300px;
+            position: relative;
+        }
+
+        .search-icon {
+            position: absolute;
+            left: 1rem;
+            top: 50%;
+            transform: translateY(-50%);
+            color: var(--accent);
+            font-size: 0.9rem;
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 0.9rem 1rem 0.9rem 2.5rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+        }
+
+        .filter-select {
+            padding: 0.9rem 1rem;
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            min-width: 200px;
+            cursor: pointer;
+        }
+
+        .filter-select:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        /* Endpoints Grid */
+        .endpoints-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .endpoint-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 1.5rem;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .endpoint-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            opacity: 0;
+            transition: opacity 0.3s ease;
+        }
+
+        .endpoint-card:hover {
+            transform: translateY(-4px);
+            box-shadow: var(--shadow);
+        }
+
+        .endpoint-card:hover::before {
+            opacity: 1;
+        }
+
+        .endpoint-card.ready {
+            border-color: rgba(0, 255, 136, 0.3);
+        }
+
+        .endpoint-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .endpoint-status {
+            font-size: 0.7rem;
+            padding: 0.2rem 0.6rem;
+            background: var(--success);
+            color: var(--bg-dark);
+            border-radius: 12px;
+            font-weight: 600;
+        }
+
+        .endpoint-title {
+            font-size: 1.1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-light);
+        }
+
+        .endpoint-description {
+            color: var(--text-gray);
+            font-size: 0.9rem;
+            line-height: 1.5;
+            margin-bottom: 1.2rem;
+        }
+
+        .endpoint-meta {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.2rem;
+        }
+
+        .endpoint-category {
+            font-size: 0.8rem;
+            color: var(--accent);
+            background: rgba(0, 204, 255, 0.1);
+            padding: 0.3rem 0.6rem;
+            border-radius: 6px;
+        }
+
+        .endpoint-test-btn {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--primary);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .endpoint-test-btn:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        /* Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 2000;
+            align-items: center;
+            justify-content: center;
+            padding: 1rem;
+            backdrop-filter: blur(10px);
+        }
+
+        .modal-overlay.active {
+            display: flex;
+        }
+
+        .modal {
+            background: var(--bg-card);
+            border-radius: 16px;
+            width: 100%;
+            max-width: 500px;
+            max-height: 90vh;
+            overflow-y: auto;
+            border: 1px solid var(--border);
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        .modal-header {
+            padding: 1.5rem;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+
+        .modal-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            color: var(--text-light);
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .modal-close {
+            background: none;
+            border: none;
+            color: var(--text-gray);
+            font-size: 1.2rem;
+            cursor: pointer;
+            padding: 0.3rem;
+            border-radius: 4px;
+            transition: all 0.3s ease;
+        }
+
+        .modal-close:hover {
+            color: var(--error);
+            background: rgba(255, 51, 102, 0.1);
+        }
+
+        .modal-body {
+            padding: 1.5rem;
+        }
+
+        .modal-endpoint-info {
+            margin-bottom: 1.5rem;
+        }
+
+        .modal-endpoint-path {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 0.8rem;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9rem;
+            color: var(--accent);
+            word-break: break-all;
+            margin: 0.5rem 0;
+        }
+
+        .parameter-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .parameter-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            color: var(--text-gray);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .parameter-input {
+            width: 100%;
+            padding: 0.8rem;
+            background: var(--glass);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text-light);
+            font-size: 0.9rem;
+            transition: all 0.3s ease;
+        }
+
+        .parameter-input:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px rgba(0, 102, 255, 0.1);
+        }
+
+        .parameter-hint {
+            font-size: 0.8rem;
+            color: var(--text-gray);
+            margin-top: 0.3rem;
+            opacity: 0.7;
+        }
+
+        .modal-actions {
+            display: flex;
+            gap: 1rem;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            flex: 1;
+            padding: 0.9rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: var(--primary-dark);
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: var(--glass);
+            border: 1px solid var(--border);
+            color: var(--text-light);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--accent);
+        }
+
+        /* Footer */
+        .footer {
+            margin-top: 4rem;
+            padding: 2rem;
+            border-top: 1px solid var(--border);
+            text-align: center;
+        }
+
+        .footer-content {
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .footer-text {
+            color: var(--text-gray);
+            font-size: 0.9rem;
+            margin-bottom: 1rem;
+        }
+
+        .footer-text strong {
+            color: var(--accent);
+            font-weight: 600;
+        }
+
+        .footer-links {
+            display: flex;
+            justify-content: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .footer-link {
+            color: var(--text-gray);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 0.3rem;
+        }
+
+        .footer-link:hover {
+            color: var(--accent);
+        }
+
+        /* Loading State */
+        .loading {
+            grid-column: 1 / -1;
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-gray);
+        }
+
+        .loading i {
+            font-size: 2rem;
+            margin-bottom: 1rem;
+            color: var(--accent);
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .header {
+                padding: 1rem;
+            }
+            
+            .main-content {
+                padding: 1rem;
+            }
+            
+            .hero-title {
+                font-size: 2rem;
+            }
+            
+            .controls {
+                flex-direction: column;
+            }
+            
+            .search-box, .filter-select {
+                min-width: 100%;
+            }
+            
+            .endpoints-grid {
+                grid-template-columns: 1fr;
+            }
+            
+            .sidebar {
+                width: 100%;
+                max-width: 100%;
+            }
+            
+            .modal-actions {
+                flex-direction: column;
+            }
+            
+            .btn {
+                width: 100%;
+            }
+        }
+
+        /* Utility Classes */
+        .hidden {
+            display: none !important;
+        }
+
+        .fade-in {
+            animation: fadeIn 0.3s ease forwards;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Scrollbar Styling */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: var(--bg-dark);
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border);
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: var(--primary);
+        }
+
+        /* Selection */
+        ::selection {
+            background: var(--primary);
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Marquee -->
+    <div class="marquee-container">
+        <div class="marquee-content">
+            <div class="marquee-text"><i class="fas fa-code"></i> Keep coding, the bug is temporary but the solution is permanent</div>
+            <div class="marquee-text"><i class="fas fa-rocket"></i> Build something amazing today</div>
+            <div class="marquee-text"><i class="fas fa-brain"></i> Debugging is like being a detective in a crime movie where you're also the murderer</div>
+            <div class="marquee-text"><i class="fas fa-server"></i> REST APIs: Because sometimes SOAP is too bubbly</div>
+            <div class="marquee-text"><i class="fas fa-terminal"></i> git commit -m "Fixed everything"</div>
+            <div class="marquee-text"><i class="fas fa-database"></i> SELECT * FROM developers WHERE coffee > 0</div>
+            <div class="marquee-text"><i class="fas fa-shield-alt"></i> Secure your endpoints like they're your passwords</div>
+            <div class="marquee-text"><i class="fas fa-bolt"></i> Performance matters: milliseconds make millions</div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="main-container">
+        <!-- Header -->
+        <header class="header">
+            <div class="header-left">
+                <img src="https://files.catbox.moe/xjbm4f.png" alt="XCVI Logo" class="logo">
+                <span class="logo-text">XCVI RESTAPI</span>
+            </div>
+            <div class="header-right">
+                <button class="menu-toggle" id="menuToggle">
+                    <i class="fas fa-bars"></i>
+                </button>
+            </div>
+        </header>
+
+        <!-- Sidebar Overlay -->
+        <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <button class="sidebar-close" id="sidebarClose">
+                <i class="fas fa-times"></i>
+            </button>
+            <div class="sidebar-header">
+                <h3 class="sidebar-title">API Documentation</h3>
+                <p class="sidebar-subtitle">Explore available endpoints</p>
+            </div>
+            <div class="sidebar-content">
+                <div class="sidebar-section">
+                    <h4 class="sidebar-section-title">
+                        <i class="fas fa-folder"></i> Categories
+                    </h4>
+                    <div class="category-list" id="categoryList">
+                        <!-- Categories loaded from JavaScript -->
+                    </div>
+                </div>
+                <div class="sidebar-section">
+                    <h4 class="sidebar-section-title">
+                        <i class="fas fa-user"></i> Developer
+                    </h4>
+                    <div class="contact-links">
+                        <a href="https://wa.me/6283898206223" class="contact-link" target="_blank">
+                            <i class="fab fa-whatsapp"></i>
+                            WhatsApp
+                        </a>
+                        <a href="https://t.me/wanz_xcvi" class="contact-link" target="_blank">
+                            <i class="fab fa-telegram"></i>
+                            Telegram
+                        </a>
+                        <a href="https://whatsapp.com/channel/0029VbCA8f77j6gFUcCZTu0y" 
+                           class="contact-link" target="_blank">
+                            <i class="fab fa-whatsapp"></i>
+                            WhatsApp Channel
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <!-- Hero Section -->
+            <section class="hero">
+                <h1 class="hero-title">REST API BY XCVI</h1>
+                <p class="hero-subtitle">
+                <span class="footer-link" id="endpointCount"> 0 Endpoints</span>
+                </p>
+            </section>
+
+            <div class="controls">
+                <div class="search-box">
+                    <i class="fas fa-search search-icon"></i>
+                    <input type="text" class="search-input" id="searchInput" placeholder="Search endpoints...">
+                </div>
+                <select class="filter-select" id="categoryFilter">
+                    <option value="all">All Categories</option>
+                </select>
+            </div>
+
+            <!-- Endpoints Grid -->
+            <div class="endpoints-grid" id="endpointsGrid">
+                <div class="loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading endpoints...</p>
+                </div>
+            </div>
+        </main>
+
+        <!-- Footer -->
+        <footer class="footer">
+            <div class="footer-content">
+                <p class="footer-text">
+                    &copy; 2025 <strong>XCVI</strong> • Powered by <strong>Wanz Official</strong>
+                </p>
+              
+            </div>
+        </footer>
+    </div>
+
+    <!-- Test Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3 class="modal-title">
+                    <i class="fas fa-play-circle"></i> Test Endpoint
+                </h3>
+                <button class="modal-close" id="modalClose">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-endpoint-info">
+                    <h4 id="modalEndpointName">Endpoint Name</h4>
+                    <p id="modalEndpointDesc" style="color: var(--text-gray); font-size: 0.9rem; margin: 0.5rem 0;"></p>
+                    <div class="modal-endpoint-path" id="modalEndpointPath">
+                        https://api.example.com/endpoint
+                    </div>
+                </div>
+                
+                <!-- Parameters akan dibuat dinamis di sini -->
+                <div id="parametersContainer"></div>
+                
+                <div class="modal-actions">
+                    <button type="button" class="btn btn-secondary" id="copyUrlBtn">
+                        <i class="fas fa-copy"></i> Copy URL
+                    </button>
+                    <button type="button" class="btn btn-primary" id="executeBtn">
+                        <i class="fas fa-play"></i> Execute Request
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        const state = {
+            apiData: null,
+            currentEndpoint: null,
+            baseUrl: window.location.origin,
+            categories: [],
+            filteredEndpoints: []
+        };
+
+        // DOM Elements
+        const elements = {
+            // Sidebar & Navigation
+            menuToggle: document.getElementById('menuToggle'),
+            sidebar: document.getElementById('sidebar'),
+            sidebarOverlay: document.getElementById('sidebarOverlay'),
+            sidebarClose: document.getElementById('sidebarClose'),
+            
+            // Content
+            searchInput: document.getElementById('searchInput'),
+            categoryFilter: document.getElementById('categoryFilter'),
+            endpointsGrid: document.getElementById('endpointsGrid'),
+            categoryList: document.getElementById('categoryList'),
+            
+            // Modal
+            modalOverlay: document.getElementById('modalOverlay'),
+            modalClose: document.getElementById('modalClose'),
+            modalEndpointName: document.getElementById('modalEndpointName'),
+            modalEndpointDesc: document.getElementById('modalEndpointDesc'),
+            modalEndpointPath: document.getElementById('modalEndpointPath'),
+            parametersContainer: document.getElementById('parametersContainer'),
+            copyUrlBtn: document.getElementById('copyUrlBtn'),
+            executeBtn: document.getElementById('executeBtn'),
+            
+            // Footer
+            endpointCount: document.getElementById('endpointCount'),
+            apiStatus: document.getElementById('apiStatus')
+        };
+
+        // Marquee Messages
+        const marqueeMessages = [
+            { icon: 'code', text: 'Keep coding, the bug is temporary but the solution is permanent' },
+            { icon: 'rocket', text: 'Build something amazing today' },
+            { icon: 'brain', text: 'Debugging is like being a detective in a crime movie where you\'re also the murderer' },
+            { icon: 'server', text: 'REST APIs: Because sometimes SOAP is too bubbly' },
+            { icon: 'terminal', text: 'git commit -m "Fixed everything"' },
+            { icon: 'database', text: 'SELECT * FROM developers WHERE coffee > 0' },
+            { icon: 'shield-alt', text: 'Secure your endpoints like they\'re your passwords' },
+            { icon: 'bolt', text: 'Performance matters: milliseconds make millions' },
+            { icon: 'code-branch', text: 'If it works, don\'t touch it. If it doesn\'t, refactor everything' },
+            { icon: 'bug', text: 'It\'s not a bug, it\'s a feature in development' }
+        ];
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', init);
+
+        async function init() {
+            setupEventListeners();
+            setupMarquee();
+            await loadApiData();
+            renderCategories();
+            renderEndpoints();
+            checkApiStatus();
+        }
+
+        // Setup Marquee
+        function setupMarquee() {
+            const marqueeContent = document.querySelector('.marquee-content');
+            marqueeContent.innerHTML = '';
+            
+            // Duplicate messages for seamless loop
+            const messages = [...marqueeMessages, ...marqueeMessages];
+            
+            messages.forEach(msg => {
+                const div = document.createElement('div');
+                div.className = 'marquee-text';
+                div.innerHTML = `<i class="fas fa-${msg.icon}"></i> ${msg.text}`;
+                marqueeContent.appendChild(div);
+            });
+        }
+
+        // Event Listeners
+        function setupEventListeners() {
+            // Sidebar toggle
+            elements.menuToggle.addEventListener('click', toggleSidebar);
+            elements.sidebarOverlay.addEventListener('click', closeSidebar);
+            elements.sidebarClose.addEventListener('click', closeSidebar);
+            
+            // Close sidebar on ESC
+            document.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    closeSidebar();
+                    closeModal();
+                }
+            });
+            
+            // Close sidebar on right-click anywhere
+            document.addEventListener('contextmenu', (e) => {
+                e.preventDefault();
+                closeSidebar();
+            });
+            
+            // Search input
+            elements.searchInput.addEventListener('input', debounce(searchEndpoints, 300));
+            
+            // Category filter
+            elements.categoryFilter.addEventListener('change', filterByCategory);
+            
+            // Modal
+            elements.modalClose.addEventListener('click', closeModal);
+            elements.modalOverlay.addEventListener('click', (e) => {
+                if (e.target === elements.modalOverlay) closeModal();
+            });
+            
+            // Execute button - PERUBAHAN PENTING: gunakan click bukan submit
+            elements.executeBtn.addEventListener('click', executeRequest);
+            elements.copyUrlBtn.addEventListener('click', copyEndpointUrl);
+            
+            // Auto-focus search on Ctrl+K
+            document.addEventListener('keydown', (e) => {
+                if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
+                    e.preventDefault();
+                    elements.searchInput.focus();
+                }
+            });
+        }
+
+        // API Data Loading
+        async function loadApiData() {
+            try {
+                const response = await fetch('/api.json');
+                state.apiData = await response.json();
+                
+                // Extract all endpoints with category info
+                state.categories = state.apiData.categories.map(category => ({
+                    name: category.name,
+                    description: category.description,
+                    endpoints: category.endpoints.map(endpoint => ({
+                        ...endpoint,
+                        category: category.name
+                    }))
+                }));
+                
+                // Initialize filtered endpoints
+                state.filteredEndpoints = getAllEndpoints();
+                
+                // Update endpoint count
+                updateEndpointCount();
+                
+            } catch (error) {
+                console.error('Error loading API data:', error);
+                showError('Failed to load API endpoints. Please refresh the page.');
+            }
+        }
+
+        // Get all endpoints
+        function getAllEndpoints() {
+            if (!state.apiData) return [];
+            return state.apiData.categories.flatMap(category => 
+                category.endpoints.map(endpoint => ({
+                    ...endpoint,
+                    category: category.name
+                }))
+            );
+        }
+
+        // Render Categories
+        function renderCategories() {
+            // Clear existing
+            elements.categoryList.innerHTML = '';
+            elements.categoryFilter.innerHTML = '<option value="all">All Categories</option>';
+            
+            if (!state.apiData) return;
+            
+            // Add all categories option
+            const allItem = document.createElement('div');
+            allItem.className = 'category-item active';
+            allItem.dataset.category = 'all';
+            allItem.innerHTML = `
+                <span>All Categories</span>
+                <span class="category-count">${getAllEndpoints().length}</span>
+            `;
+            allItem.addEventListener('click', () => {
+                document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+                allItem.classList.add('active');
+                filterByCategory('all');
+            });
+            elements.categoryList.appendChild(allItem);
+            
+            // Add each category
+            state.apiData.categories.forEach(category => {
+                // Sidebar category item
+                const categoryItem = document.createElement('div');
+                categoryItem.className = 'category-item';
+                categoryItem.dataset.category = category.name;
+                categoryItem.innerHTML = `
+                    <span>${category.name}</span>
+                    <span class="category-count">${category.endpoints.length}</span>
+                `;
+                categoryItem.addEventListener('click', () => {
+                    document.querySelectorAll('.category-item').forEach(item => item.classList.remove('active'));
+                    categoryItem.classList.add('active');
+                    filterByCategory(category.name);
+                });
+                elements.categoryList.appendChild(categoryItem);
+                
+                // Filter dropdown option
+                const option = document.createElement('option');
+                option.value = category.name;
+                option.textContent = `${category.name} (${category.endpoints.length})`;
+                elements.categoryFilter.appendChild(option);
+            });
+        }
+
+        // Render Endpoints
+        function renderEndpoints() {
+            if (!state.apiData) {
+                elements.endpointsGrid.innerHTML = `
+                    <div class="loading">
+                        <i class="fas fa-exclamation-triangle"></i>
+                        <p>Failed to load endpoints</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            if (state.filteredEndpoints.length === 0) {
+                elements.endpointsGrid.innerHTML = `
+                    <div class="loading">
+                        <i class="fas fa-search"></i>
+                        <p>No endpoints found matching your search</p>
+                    </div>
+                `;
+                return;
+            }
+            
+            // Clear existing
+            elements.endpointsGrid.innerHTML = '';
+            
+            // Add each endpoint card
+            state.filteredEndpoints.forEach((endpoint, index) => {
+                const card = document.createElement('div');
+                card.className = `endpoint-card ${endpoint.status.toLowerCase()} fade-in`;
+                card.style.animationDelay = `${index * 0.05}s`;
+                
+                card.innerHTML = `
+                    <div class="endpoint-header">
+                        <div>
+                            <h3 class="endpoint-title">${endpoint.name}</h3>
+                            <p class="endpoint-description">${endpoint.description}</p>
+                        </div>
+                        <span class="endpoint-status">${endpoint.status}</span>
+                    </div>
+                    <div class="endpoint-meta">
+                        <span class="endpoint-category">${endpoint.category}</span>
+                    </div>
+                    <button class="endpoint-test-btn" data-endpoint='${JSON.stringify(endpoint)}'>
+                        <i class="fas fa-play"></i> Test Endpoint
+                    </button>
+                `;
+                
+                // Add click event to test button - PERUBAHAN PENTING: gunakan event delegation
+                const testBtn = card.querySelector('.endpoint-test-btn');
+                testBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    openTestModal(endpoint);
+                });
+                
+                elements.endpointsGrid.appendChild(card);
+            });
+            
+            // Update count
+            updateEndpointCount();
+        }
+
+        // Search Endpoints
+        function searchEndpoints() {
+            const query = elements.searchInput.value.trim().toLowerCase();
+            
+            if (!query) {
+                state.filteredEndpoints = getAllEndpoints();
+            } else {
+                state.filteredEndpoints = getAllEndpoints().filter(endpoint => {
+                    const searchStr = `
+                        ${endpoint.name}
+                        ${endpoint.description}
+                        ${endpoint.path}
+                        ${endpoint.category}
+                    `.toLowerCase();
+                    
+                    return searchStr.includes(query);
+                });
+            }
+            
+            renderEndpoints();
+        }
+
+        // Filter by Category
+        function filterByCategory(categoryName = null) {
+            const category = categoryName || elements.categoryFilter.value;
+            
+            if (category === 'all') {
+                state.filteredEndpoints = getAllEndpoints();
+            } else {
+                state.filteredEndpoints = getAllEndpoints().filter(
+                    endpoint => endpoint.category === category
+                );
+            }
+            
+            // Update search input
+            elements.searchInput.value = '';
+            
+            renderEndpoints();
+        }
+
+        // Open Test Modal
+        function openTestModal(endpoint) {
+            state.currentEndpoint = endpoint;
+            
+            // Update modal content
+            elements.modalEndpointName.textContent = endpoint.name;
+            elements.modalEndpointDesc.textContent = endpoint.description;
+            elements.modalEndpointPath.textContent = `${state.baseUrl}${endpoint.path}`;
+            
+            // Clear previous parameters
+            elements.parametersContainer.innerHTML = '';
+            
+            // Create parameter inputs dynamically based on endpoint parameters
+            if (endpoint.parameters && endpoint.parameters.length > 0) {
+                endpoint.parameters.forEach(param => {
+                    const paramGroup = document.createElement('div');
+                    paramGroup.className = 'parameter-group';
+                    paramGroup.innerHTML = `
+                        <label class="parameter-label" for="param-${param.name}">
+                            <i class="fas fa-${getParamIcon(param.type)}"></i> ${param.name}
+                        </label>
+                        <input type="text" 
+                               class="parameter-input" 
+                               id="param-${param.name}" 
+                               placeholder="${param.description || 'Enter value...'}"
+                               value="${param.example || ''}"
+                               ${param.required ? 'required' : ''}>
+                        ${param.description ? `<div class="parameter-hint">${param.description}</div>` : ''}
+                    `;
+                    elements.parametersContainer.appendChild(paramGroup);
+                });
+            } else {
+                // If no parameters defined, create a default text parameter
+                const paramGroup = document.createElement('div');
+                paramGroup.className = 'parameter-group';
+                paramGroup.innerHTML = `
+                    <label class="parameter-label" for="param-text">
+                        <i class="fas fa-font"></i> Text Parameter
+                    </label>
+                    <input type="text" 
+                           class="parameter-input" 
+                           id="param-text" 
+                           placeholder="Enter text..."
+                           value="example">
+                    <div class="parameter-hint">
+                        Required parameter for the endpoint
+                    </div>
+                `;
+                elements.parametersContainer.appendChild(paramGroup);
+            }
+            
+            // Reset execute button
+            elements.executeBtn.innerHTML = '<i class="fas fa-play"></i> Execute Request';
+            elements.executeBtn.disabled = false;
+            
+            // Open modal
+            elements.modalOverlay.classList.add('active');
+            document.body.style.overflow = 'hidden';
+            
+            // Focus on first input
+            setTimeout(() => {
+                const firstInput = elements.parametersContainer.querySelector('input');
+                if (firstInput) firstInput.focus();
+            }, 100);
+        }
+
+        // Helper function to get parameter icon
+        function getParamIcon(type) {
+            switch(type) {
+                case 'string': return 'font';
+                case 'number': return 'hashtag';
+                case 'boolean': return 'toggle-on';
+                case 'file': return 'file';
+                default: return 'edit';
+            }
+        }
+
+        // Close Modal
+        function closeModal() {
+            elements.modalOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+            state.currentEndpoint = null;
+        }
+
+        // Execute Request
+        async function executeRequest() {
+            if (!state.currentEndpoint) return;
+            
+            // Collect all parameter values
+            const params = new URLSearchParams();
+            let isValid = true;
+            
+            // Get all parameter inputs
+            const paramInputs = elements.parametersContainer.querySelectorAll('.parameter-input');
+            paramInputs.forEach(input => {
+                const value = input.value.trim();
+                if (input.required && !value) {
+                    isValid = false;
+                    input.style.borderColor = 'var(--error)';
+                    showToast(`Parameter is required`, 'warning');
+                } else {
+                    input.style.borderColor = '';
+                    const paramName = input.id.replace('param-', '');
+                    params.append(paramName, value || 'example');
+                }
+            });
+            
+            if (!isValid) return;
+            
+            // Build URL
+            const url = `${state.baseUrl}${state.currentEndpoint.path}?${params.toString()}`;
+            
+            // Show loading state
+            const originalText = elements.executeBtn.innerHTML;
+            elements.executeBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Executing...';
+            elements.executeBtn.disabled = true;
+            
+            try {
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                // Open in new tab
+                window.open(url, '_blank');
+                
+                // Show success message
+                showToast('Request executed successfully!', 'success');
+                
+                // Close modal after delay
+                setTimeout(closeModal, 1000);
+                
+            } catch (error) {
+                console.error('Request failed:', error);
+                showToast('Failed to execute request', 'error');
+                
+            } finally {
+                // Restore button state
+                elements.executeBtn.innerHTML = originalText;
+                elements.executeBtn.disabled = false;
+            }
+        }
+
+        // Copy Endpoint URL
+        function copyEndpointUrl() {
+            if (!state.currentEndpoint) return;
+            
+            // Collect all parameter values
+            const params = new URLSearchParams();
+            const paramInputs = elements.parametersContainer.querySelectorAll('.parameter-input');
+            paramInputs.forEach(input => {
+                const paramName = input.id.replace('param-', '');
+                const value = input.value.trim() || 'example';
+                params.append(paramName, value);
+            });
+            
+            const url = `${state.baseUrl}${state.currentEndpoint.path}?${params.toString()}`;
+            
+            navigator.clipboard.writeText(url)
+                .then(() => {
+                    showToast('URL copied to clipboard!', 'success');
+                })
+                .catch(err => {
+                    console.error('Copy failed:', err);
+                    showToast('Failed to copy URL', 'error');
+                });
+        }
+
+        // Check API Status
+        async function checkApiStatus() {
+            try {
+                const response = await fetch(`${state.baseUrl}/api/test`);
+                const data = await response.json();
+                
+                if (data.status === 'online') {
+                    elements.apiStatus.innerHTML = '<i class="fas fa-circle" style="color: #00ff88;"></i> API Online';
+                } else {
+                    elements.apiStatus.innerHTML = '<i class="fas fa-circle" style="color: #ffaa00;"></i> API Limited';
+                }
+            } catch (error) {
+                console.error('API status check failed:', error);
+                elements.apiStatus.innerHTML = '<i class="fas fa-circle" style="color: #ff3366;"></i> API Offline';
+            }
+        }
+
+        // Update Endpoint Count
+        function updateEndpointCount() {
+            if (!state.apiData) return;
+            
+            const total = getAllEndpoints().length;
+            const showing = state.filteredEndpoints.length;
+            
+            if (showing === total) {
+                elements.endpointCount.textContent = `${total} Endpoints`;
+            } else {
+                elements.endpointCount.textContent = `${showing} of ${total} Endpoints`;
+            }
+        }
+
+        // Sidebar Functions
+        function toggleSidebar() {
+            elements.sidebar.classList.toggle('active');
+            elements.sidebarOverlay.classList.toggle('active');
+            document.body.style.overflow = elements.sidebar.classList.contains('active') ? 'hidden' : '';
+        }
+
+        function closeSidebar() {
+            elements.sidebar.classList.remove('active');
+            elements.sidebarOverlay.classList.remove('active');
+            document.body.style.overflow = '';
+        }
+
+        // Utility Functions
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        function showToast(message, type = 'info') {
+            // Remove existing toast
+            const existingToast = document.querySelector('.toast');
+            if (existingToast) existingToast.remove();
+            
+            // Create toast
+            const toast = document.createElement('div');
+            toast.className = `toast toast-${type} fade-in`;
+            toast.innerHTML = `
+                <i class="fas fa-${type === 'success' ? 'check-circle' : type === 'error' ? 'exclamation-circle' : 'info-circle'}"></i>
+                <span>${message}</span>
+            `;
+            
+            // Add styles
+            const style = document.createElement('style');
+            style.textContent = `
+                .toast {
+                    position: fixed;
+                    bottom: 2rem;
+                    right: 2rem;
+                    background: var(--bg-card);
+                    border: 1px solid var(--border);
+                    border-left: 4px solid var(--primary);
+                    padding: 1rem 1.5rem;
+                    border-radius: 8px;
+                    display: flex;
+                    align-items: center;
+                    gap: 0.8rem;
+                    z-index: 3000;
+                    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+                    animation: slideIn 0.3s ease;
+                }
+                .toast-success {
+                    border-left-color: var(--success);
+                }
+                .toast-error {
+                    border-left-color: var(--error);
+                }
+                .toast-warning {
+                    border-left-color: var(--warning);
+                }
+                .toast i {
+                    font-size: 1.2rem;
+                }
+                .toast-success i {
+                    color: var(--success);
+                }
+                .toast-error i {
+                    color: var(--error);
+                }
+                .toast-warning i {
+                    color: var(--warning);
+                }
+                @keyframes slideIn {
+                    from {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                    to {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                }
+                @media (max-width: 768px) {
+                    .toast {
+                        left: 1rem;
+                        right: 1rem;
+                        bottom: 1rem;
+                    }
+                }
+            `;
+            document.head.appendChild(style);
+            
+            document.body.appendChild(toast);
+            
+            // Remove after 3 seconds
+            setTimeout(() => {
+                toast.style.animation = 'slideOut 0.3s ease forwards';
+                setTimeout(() => {
+                    if (toast.parentNode) {
+                        toast.remove();
+                        document.head.removeChild(style);
+                    }
+                }, 300);
+            }, 3000);
+            
+            // Add slideOut animation
+            const slideOutStyle = document.createElement('style');
+            slideOutStyle.textContent = `
+                @keyframes slideOut {
+                    from {
+                        transform: translateX(0);
+                        opacity: 1;
+                    }
+                    to {
+                        transform: translateX(100%);
+                        opacity: 0;
+                    }
+                }
+            `;
+            document.head.appendChild(slideOutStyle);
+            
+            setTimeout(() => {
+                document.head.removeChild(slideOutStyle);
+            }, 3300);
+        }
+
+        function showError(message) {
+            elements.endpointsGrid.innerHTML = `
+                <div class="loading">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>${message}</p>
+                    <button style="margin-top: 1rem; padding: 0.5rem 1rem; background: var(--primary); border: none; border-radius: 6px; color: white; cursor: pointer;" onclick="window.location.reload()">
+                        <i class="fas fa-redo"></i> Refresh Page
+                    </button>
+                </div>
+            `;
+        }
+
+        // Initialize on load
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
