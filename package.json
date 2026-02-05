@@ -14,7 +14,7 @@
     "@resvg/resvg-js": "^2.6.0",
     "axios": "^1.6.8",
     "crypto": "^1.0.1",
-    "jimp": "^1.6.0"
+    "jimp": "^0.22.10"
   },
   "devDependencies": {
     "vercel": "^28.16.0"
