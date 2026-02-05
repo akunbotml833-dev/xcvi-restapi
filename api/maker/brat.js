@@ -1,63 +1,111 @@
 const security = require('../security');
-const { createCanvas, loadImage, GlobalFonts } = require('@napi-rs/canvas');
-const path = require('path');
-
-// Coba register font default
-try {
-  // Cek font yang tersedia
-  const availableFonts = GlobalFonts.families;
-  console.log('Available fonts:', availableFonts.slice(0, 5));
-} catch (e) {
-  console.log('Cannot get font list:', e.message);
-}
+const Jimp = require('jimp');
 
 module.exports = async (req, res) => {
-  // [Header dan validation sama...]
+  // Set CORS headers
+  res.setHeader('Access-Control-Allow-Credentials', 'true');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  
+  // Handle preflight
+  if (req.method === 'OPTIONS') {
+    return res.status(200).end();
+  }
+  
+  // Check rate limit
+  if (!security.securityMiddleware(req, res)) {
+    return;
+  }
+  
+  // Only allow GET
+  if (req.method !== 'GET') {
+    await security.sendTelegramReport(
+      '/api/maker/brat',
+      req,
+      null,
+      'error',
+      'Method not allowed'
+    );
+    
+    return res.status(405).json({
+      error: 'Method not allowed. Use GET.',
+      timestamp: new Date().toISOString()
+    });
+  }
   
   try {
     const { text } = req.query;
     
-    // [Validation sama...]
+    // Validation
+    if (!text) {
+      await security.sendTelegramReport(
+        '/api/maker/brat',
+        req,
+        { text },
+        'error',
+        'Text parameter required'
+      );
+      
+      return res.status(400).json({
+        success: false,
+        error: 'Text parameter is required',
+        example: '/api/maker/brat?text=Hello+World',
+        timestamp: new Date().toISOString()
+      });
+    }
     
-    // CREATE CANVAS 800x800
+    const cleanText = String(text).trim();
+    
+    if (cleanText.length > 80) {
+      await security.sendTelegramReport(
+        '/api/maker/brat',
+        req,
+        { text: cleanText.substring(0, 20) },
+        'error',
+        'Text too long (max 80 chars)'
+      );
+      
+      return res.status(400).json({
+        success: false,
+        error: 'Text too long',
+        message: 'Maximum 80 characters allowed',
+        length: cleanText.length,
+        max_length: 80,
+        timestamp: new Date().toISOString()
+      });
+    }
+    
+    // CREATE 800x800 IMAGE DENGAN JIMP
     const width = 800;
     const height = 800;
-    const canvas = createCanvas(width, height);
-    const ctx = canvas.getContext('2d');
     
-    // DRAW BACKGROUND - PUTIH POLOS
-    ctx.fillStyle = '#FFFFFF';
-    ctx.fillRect(0, 0, width, height);
+    // Create white background
+    const image = new Jimp(width, height, 0xFFFFFFFF);
     
-    // DRAW TEXT - PAKAI FONT YANG PASTI ADA
-    ctx.fillStyle = '#000000';
-    ctx.textAlign = 'left';
-    ctx.textBaseline = 'top';
+    // Load font (Jimp自带字体或默认字体)
+    let font;
+    try {
+      // Coba load font bawaan Jimp
+      font = await Jimp.loadFont(Jimp.FONT_SANS_32_BLACK);
+    } catch (fontError) {
+      console.log('Using default bitmap font:', fontError.message);
+      // Fallback ke font default
+      font = await Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);
+    }
     
-    // FIX: Gunakan font generic yang pasti work
-    // Di Vercel, 'sans-serif' harusnya selalu ada
-    const fontSize = 60;
-    ctx.font = `bold ${fontSize}px sans-serif`;
-    
-    // TEST: Draw test rectangle untuk verifikasi canvas work
-    ctx.fillStyle = '#FF0000';
-    ctx.fillRect(10, 10, 10, 10); // Red dot di corner
-    
-    // TEST: Draw simple text tanpa wrapping
-    ctx.fillStyle = '#000000';
-    ctx.fillText('TESTING', 50, 100);
-    
-    // WORD WRAPPING SIMPLE
+    // TEXT WRAPPING untuk Jimp
     const words = cleanText.split(' ');
     const lines = [];
     let currentLine = '';
-    const maxWidth = width - 100;
+    const maxWidth = width - 100; // Margin 50px kiri-kanan
+    const charWidth = 20; // Approx width per character untuk font size 32
     
     for (const word of words) {
       const testLine = currentLine ? currentLine + ' ' + word : word;
-      const metrics = ctx.measureText(testLine);
+      const lineWidth = testLine.length * charWidth;
       
-      if (metrics.width > maxWidth && currentLine !== '') {
+      if (lineWidth > maxWidth && currentLine !== '') {
         lines.push(currentLine);
         currentLine = word;
       } else {
@@ -66,28 +114,78 @@ module.exports = async (req, res) => {
     }
     if (currentLine) lines.push(currentLine);
     
-    // Adjust font size if needed
-    let finalFontSize = fontSize;
-    if (lines.length > 4) {
-      finalFontSize = Math.max(40, fontSize - (lines.length * 3));
-    }
+    // Calculate position
+    const lineHeight = 40;
+    const startX = 50;
+    const totalHeight = lines.length * lineHeight;
+    let startY = (height - totalHeight) / 2;
     
-    // Set final font
-    ctx.font = `bold ${finalFontSize}px sans-serif`;
-    
-    // DRAW TEXT LINES
-    const lineHeight = finalFontSize * 1.3;
-    const marginLeft = 60;
-    let startY = 100;
-    
+    // Draw each line
     lines.forEach((line, index) => {
-      const yPos = startY + (index * lineHeight);
-      ctx.fillText(line, marginLeft, yPos);
+      const y = startY + (index * lineHeight);
+      image.print(font, startX, y, line);
     });
     
-    // GENERATE PNG
-    const pngBuffer = canvas.toBuffer('image/png');
+    // Convert to PNG buffer
+    const pngBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
     
-    // [Send report dan return...]
+    // Send report
+    await security.sendTelegramReport(
+      '/api/maker/brat',
+      req,
+      { 
+        text: cleanText.substring(0, 30),
+        length: cleanText.length,
+        lines: lines.length,
+        font: 'Jimp default',
+        dimensions: `${width}x${height}`
+      },
+      'success'
+    );
+    
+    // Set response headers
+    res.setHeader('Content-Type', 'image/png');
+    res.setHeader('Content-Length', pngBuffer.length);
+    res.setHeader('Cache-Control', 'public, max-age=86400');
+    res.setHeader('X-Dimensions', `${width}x${height}`);
+    res.setHeader('X-Format', 'PNG');
+    res.setHeader('X-Text-Length', cleanText.length);
+    
+    // Return PNG
+    return res.status(200).send(pngBuffer);
+    
+  } catch (error) {
+    console.error('Brat API error (Jimp):', error);
+    
+    await security.sendTelegramReport(
+      '/api/maker/brat',
+      req,
+      req.query,
+      'error',
+      error
+    );
+    
+    // Fallback: Create simple image dengan Jimp
+    try {
+      const fallbackImage = new Jimp(800, 800, 0xFFFFFFFF);
+      const font = await Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);
+      
+      fallbackImage.print(font, 50, 100, 'ERROR: ' + error.message.substring(0, 50));
+      fallbackImage.print(font, 50, 150, 'Text: ' + (cleanText || 'none').substring(0, 30));
+      
+      const fallbackBuffer = await fallbackImage.getBufferAsync(Jimp.MIME_PNG);
+      
+      res.setHeader('Content-Type', 'image/png');
+      return res.status(500).send(fallbackBuffer);
+      
+    } catch (fallbackError) {
+      res.setHeader('Content-Type', 'application/json');
+      return res.status(500).json({
+        success: false,
+        error: 'Failed to generate image',
+        message: error.message,
+        timestamp: new Date().toISOString()
+      });
+    }
   }
 };
