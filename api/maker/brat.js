@@ -1,7 +1,7 @@
 const security = require('../security');
 const axios = require('axios');
 const cheerio = require('cheerio');
-const { createCanvas, loadImage, registerFont } = require('canvas');
+const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const path = require('path');
 
 module.exports = async (req, res) => {
