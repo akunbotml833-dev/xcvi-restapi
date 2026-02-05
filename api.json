@@ -1,0 +1,65 @@
+{
+  "name": "XCVI RESTAPI",
+  "description": "Collection of REST API endpoints for various services",
+  "baseUrl": "https://xcvi-restapi.vercel.app",
+  "categories": [
+  {
+      "name": "AI",
+      "description": "Utility Ai tools",
+      "endpoints": [
+        {
+          "name": "groq",
+          "path": "/api/ai/groq",
+          "description": "Chatbot simple",
+          "status": "READY",
+          "parameters": [
+            {
+              "name": "prompt",
+              "type": "string",
+              "required": true,
+              "description": "Set AI personality"
+            },
+            {
+              "name": "query",
+              "type": "string",
+              "required": true,
+              "description": "enter your text"
+            },
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Maker",
+      "description": "Content creation tools",
+      "endpoints": [
+        {
+          "name": "Stiker Brat",
+          "path": "/api/maker/brat",
+          "description": "Create custom stickers",
+          "status": "READY",
+          "parameters": [
+            {
+              "name": "text",
+              "type": "string",
+              "required": true,
+              "description": "Text for sticker"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Tools",
+      "description": "Utility tools",
+      "endpoints": [
+        {
+          "name": "QR Generator",
+          "path": "/api/tools/qr",
+          "description": "Generate QR codes",
+          "status": "READY"
+        }
+      ]
+    }
+  ]
+}
