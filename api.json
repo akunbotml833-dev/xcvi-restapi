@@ -24,7 +24,7 @@
               "type": "string",
               "required": true,
               "description": "enter your text"
-            },
+            }
           ]
         }
       ]
