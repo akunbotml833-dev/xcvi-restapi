@@ -1,5 +1,5 @@
 const security = require('../security');
-const Jimp = require('jimp');
+const sharp = require('sharp');
 
 module.exports = async (req, res) => {
   // Set CORS headers
@@ -76,36 +76,19 @@ module.exports = async (req, res) => {
       });
     }
     
-    // CREATE 800x800 IMAGE DENGAN JIMP
+    // CREATE SVG WITH TEXT
     const width = 800;
     const height = 800;
     
-    // Create white background
-    const image = new Jimp(width, height, 0xFFFFFFFF);
-    
-    // Load font (Jimp自带字体或默认字体)
-    let font;
-    try {
-      // Coba load font bawaan Jimp
-      font = await Jimp.loadFont(Jimp.FONT_SANS_32_BLACK);
-    } catch (fontError) {
-      console.log('Using default bitmap font:', fontError.message);
-      // Fallback ke font default
-      font = await Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);
-    }
-    
-    // TEXT WRAPPING untuk Jimp
+    // Word wrapping untuk SVG
     const words = cleanText.split(' ');
     const lines = [];
     let currentLine = '';
-    const maxWidth = width - 100; // Margin 50px kiri-kanan
-    const charWidth = 20; // Approx width per character untuk font size 32
+    const maxCharsPerLine = 20; // Approx untuk font size 50
     
     for (const word of words) {
       const testLine = currentLine ? currentLine + ' ' + word : word;
-      const lineWidth = testLine.length * charWidth;
-      
-      if (lineWidth > maxWidth && currentLine !== '') {
+      if (testLine.length > maxCharsPerLine && currentLine !== '') {
         lines.push(currentLine);
         currentLine = word;
       } else {
@@ -114,20 +97,55 @@ module.exports = async (req, res) => {
     }
     if (currentLine) lines.push(currentLine);
     
-    // Calculate position
-    const lineHeight = 40;
-    const startX = 50;
+    // Calculate font size
+    let fontSize = 55;
+    if (lines.length > 3) fontSize = 45;
+    if (lines.length > 5) fontSize = 38;
+    
+    // Build SVG dengan text
+    const lineHeight = fontSize * 1.3;
+    const startX = 60;
     const totalHeight = lines.length * lineHeight;
-    let startY = (height - totalHeight) / 2;
+    const startY = (height - totalHeight) / 2 + fontSize;
     
-    // Draw each line
-    lines.forEach((line, index) => {
+    // Escape XML special characters
+    function escapeXml(unsafe) {
+      return unsafe.replace(/[<>&'"]/g, function(c) {
+        switch(c) {
+          case '<': return '&lt;';
+          case '>': return '&gt;';
+          case '&': return '&amp;';
+          case '\'': return '&apos;';
+          case '"': return '&quot;';
+        }
+      });
+    }
+    
+    // Create SVG string
+    const svgString = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="${width}" height="${height}" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="white"/>
+  
+  <g font-family="Arial, Helvetica, sans-serif" 
+     font-size="${fontSize}" 
+     font-weight="bold" 
+     fill="black"
+     text-anchor="start">
+    ${lines.map((line, index) => {
       const y = startY + (index * lineHeight);
-      image.print(font, startX, y, line);
-    });
+      return `<text x="${startX}" y="${y}">${escapeXml(line)}</text>`;
+    }).join('\n    ')}
+  </g>
+  
+  <!-- Debug border -->
+  <rect x="10" y="10" width="${width-20}" height="${height-20}" 
+        stroke="red" stroke-width="2" fill="none"/>
+</svg>`;
     
-    // Convert to PNG buffer
-    const pngBuffer = await image.getBufferAsync(Jimp.MIME_PNG);
+    // Convert SVG to PNG menggunakan sharp
+    const pngBuffer = await sharp(Buffer.from(svgString))
+      .png()
+      .toBuffer();
     
     // Send report
     await security.sendTelegramReport(
@@ -137,8 +155,9 @@ module.exports = async (req, res) => {
         text: cleanText.substring(0, 30),
         length: cleanText.length,
         lines: lines.length,
-        font: 'Jimp default',
-        dimensions: `${width}x${height}`
+        fontSize: fontSize,
+        dimensions: `${width}x${height}`,
+        method: 'sharp+svg'
       },
       'success'
     );
@@ -155,7 +174,7 @@ module.exports = async (req, res) => {
     return res.status(200).send(pngBuffer);
     
   } catch (error) {
-    console.error('Brat API error (Jimp):', error);
+    console.error('Brat API error (sharp):', error);
     
     await security.sendTelegramReport(
       '/api/maker/brat',
@@ -165,18 +184,22 @@ module.exports = async (req, res) => {
       error
     );
     
-    // Fallback: Create simple image dengan Jimp
+    // Fallback: Return simple SVG
     try {
-      const fallbackImage = new Jimp(800, 800, 0xFFFFFFFF);
-      const font = await Jimp.loadFont(Jimp.FONT_SANS_16_BLACK);
+      const fallbackSvg = `<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="800" xmlns="http://www.w3.org/2000/svg">
+  <rect width="100%" height="100%" fill="white"/>
+  <text x="50" y="100" font-family="Arial" font-size="40" fill="red">ERROR</text>
+  <text x="50" y="150" font-family="Arial" font-size="20" fill="black">${error.message.substring(0, 50)}</text>
+  <text x="50" y="180" font-family="Arial" font-size="16" fill="gray">Text: ${(cleanText || 'none').substring(0, 30)}</text>
+</svg>`;
       
-      fallbackImage.print(font, 50, 100, 'ERROR: ' + error.message.substring(0, 50));
-      fallbackImage.print(font, 50, 150, 'Text: ' + (cleanText || 'none').substring(0, 30));
-      
-      const fallbackBuffer = await fallbackImage.getBufferAsync(Jimp.MIME_PNG);
+      const fallbackPng = await sharp(Buffer.from(fallbackSvg))
+        .png()
+        .toBuffer();
       
       res.setHeader('Content-Type', 'image/png');
-      return res.status(500).send(fallbackBuffer);
+      return res.status(500).send(fallbackPng);
       
     } catch (fallbackError) {
       res.setHeader('Content-Type', 'application/json');
