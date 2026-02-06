@@ -12,7 +12,7 @@
           "path": "/api/ai/groq",
           "description": "Chatbot simple",
           "status": "READY",
-          "parameters": [
+          "parameters": [ 
             {
               "name": "prompt",
               "type": "string",
